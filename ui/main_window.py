@@ -1,20 +1,28 @@
-from PySide6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget
-from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QGroupBox, QFormLayout, QScrollArea
+from core.system_info import get_system_info
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Pulse - PC Benchmark & Diagnostics")
-        self.setMinimumSize(800, 600)
-        self.setWindowIcon(QIcon("assets/icon.png"))  # Replace with your icon
+        self.setWindowTitle("Pulse – System Information")
+        self.setMinimumSize(900, 600)
 
-        # Basic layout and label
-        layout = QVBoxLayout()
-        label = QLabel("Welcome to Pulse!\nSystem performance and diagnostics tool.")
-        label.setStyleSheet("font-size: 18px; padding: 20px;")
+        # Scrollable layout
+        scroll = QScrollArea()
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
 
-        layout.addWidget(label)
+        system_info = get_system_info()
 
-        container = QWidget()
-        container.setLayout(layout)
-        self.setCentralWidget(container)
+        
+        for section, data in system_info.items():
+            group_box = QGroupBox(section)
+            form_layout = QFormLayout()
+            for key, value in data.items():
+                form_layout.addRow(f"{key}:", QLabel(str(value)))
+            group_box.setLayout(form_layout)
+            layout.addWidget(group_box)
+
+        scroll.setWidget(widget)
+        scroll.setWidgetResizable(True)
+        self.setCentralWidget(scroll)
