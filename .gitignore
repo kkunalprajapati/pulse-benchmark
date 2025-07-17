@@ -1,5 +1,6 @@
 # Custom files and directories to ignore in Python projects
 runINsudo.sh
+*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

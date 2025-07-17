@@ -1,12 +1,14 @@
 from PySide6.QtWidgets import (
     QMainWindow, QLabel, QVBoxLayout, QWidget, QGroupBox,
     QFormLayout, QScrollArea, QProgressBar, QPushButton,
-    QTabWidget, QApplication
+    QTabWidget, QApplication,QHBoxLayout, QRadioButton, QButtonGroup
 )
 from PySide6.QtCore import Qt
+from PySide6.QtCore import QThread
+from core.benchmark_worker import BenchmarkWorker
 
 from core.system_info import get_system_info
-from core.benchmark import run_benchmark
+# from core.benchmark import run_benchmark, export_benchmark_report
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -111,7 +113,23 @@ class MainWindow(QMainWindow):
         self.result_label = QLabel("Click 'Run Benchmark' to begin.")
         self.result_label.setStyleSheet("font-size: 14px; padding: 10px; color: black;")
         layout.addWidget(self.result_label)
-
+        # Benchmark Mode Toggle
+        mode_label = QLabel("Select Benchmark Mode:")
+        mode_label.setStyleSheet("font-size: 13px; color: black; padding-bottom: 5px;")
+        
+        self.quick_mode = QRadioButton("Quick")
+        self.full_mode = QRadioButton("Complete")
+        self.quick_mode.setChecked(True)
+        
+        mode_group = QButtonGroup()
+        mode_group.addButton(self.quick_mode)
+        mode_group.addButton(self.full_mode)
+        
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(mode_label)
+        mode_layout.addWidget(self.quick_mode)
+        mode_layout.addWidget(self.full_mode)
+        mode_layout.addStretch()
         # Score bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 10)
@@ -122,19 +140,60 @@ class MainWindow(QMainWindow):
         btn.clicked.connect(self.handle_benchmark)
         layout.addWidget(btn)
 
+        export_btn = QPushButton("Save Report")
+        export_btn.clicked.connect(self.export_benchmark)
+
+        self.export_status = QLabel("")
+        self.export_status.setStyleSheet("font-size: 12px; color: #7fff7f;")
+
+        layout.addWidget(export_btn)
+        layout.addWidget(self.export_status)
+        
+
+        layout.addLayout(mode_layout)
+
         widget.setLayout(layout)
         return widget
 
     def handle_benchmark(self):
-        self.result_label.setText("Benchmarking... please wait.")
-        QApplication.processEvents()
-        results = run_benchmark()
-    
+        self.result_label.setText("Running benchmark...")
+        self.progress_bar.setValue(0)
+
+        mode = "quick" if self.quick_mode.isChecked() else "complete"
+
+        self.thread = QThread()
+        self.worker = BenchmarkWorker(mode)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.progress.connect(self.progress_bar.setValue)
+        self.worker.result.connect(self.display_results)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+
+        self.thread.start()
+
+       
+    def display_results(self, results):
+        self.latest_benchmark = results
         score = results["Final Score"]
-        self.progress_bar.setValue(int(score))
+    
         self.result_label.setText(
-            f"🔍 CPU Score: {results['CPU Score']}\n"
-            f"📊 RAM Score: {results['RAM Score']}\n"
-            f"🎯 Final Score: {score} / 10"
+            f"🧠 CPU (Single-Core): {results['CPU Single-Core']} hashes/sec\n"
+            f"⚙️ CPU (Multi-Core): {results['CPU Multi-Core']} hashes/sec\n"
+            f"📊 RAM Speed: {results['RAM Speed']} MB/s\n"
+            f"💾 Disk Write: {results['Disk Write']} MB/s\n"
+            f"💾 Disk Read: {results['Disk Read']} MB/s\n"
+            f"🏁 Overall Score: {score} / 10"
         )
         self.score_display.setText(f"⚙️ {score} / 10")
+
+    def export_benchmark(self):
+        if hasattr(self, "latest_benchmark"):
+            path = export_benchmark_report(self.latest_benchmark, format="json")
+            self.export_status.setText(f"Report saved to: {path}")
+        else:
+            self.export_status.setText("Run a benchmark first.")
+    
+   
